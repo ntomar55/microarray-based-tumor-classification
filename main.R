@@ -170,3 +170,14 @@ clustering <- function(data){
   plot
 
 }
+
+heat_map <- function(data){
+  rownames(data) <- data[,1]
+  data <- as.matrix(data[,-1])
+  
+  heatmap(data)
+  
+}
+
+heat_map(filtered_data)
+
