@@ -1,0 +1,30 @@
+---
+title: "report.rmd"
+output: html_document
+author: David Lenci
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source("main.R")
+```
+
+```{r}
+expr_mat <- read_expression_table('/usr4/bf527/dlenci/data/bf528_data/example_intensity_data.csv')
+knitr::kable(head(expr_mat[c(1:5)]))
+```
+
+```{r}
+filtered_data <- first_filter(expr_mat) %>%
+  sec_filter() %>%
+  third_filter()
+knitr::kable(head(filtered_data[c(1:5)]))
+```
+```{r}
+best_method(filtered_data)
+```
+
+
+```{r}
+clustering(filtered_data)
+```
