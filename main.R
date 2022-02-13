@@ -10,6 +10,7 @@ library(resample)
 library(cluster)
 library(ggdendro)
 library(ggplot2)
+library(rstatix)
 
 #' Read the expression data "csv" file.
 #'
@@ -33,6 +34,18 @@ read_expression_table <- function(filename) {
   )),
   rownames = "sample_ids")
   return(expr_mat)
+}
+
+read_meta_table <- function(filename) {
+  
+  meta_data<- tibble::as_tibble(read.csv(
+    filename,
+    header = TRUE
+  ))
+  
+  meta_data <- meta_data[meta_data$geo_accession %in% expr_mat$sample_ids,]
+  
+  return(meta_data)
 }
 
 #' First step of filtering noise.
@@ -157,27 +170,74 @@ clustering <- function(data){
   rownames(data) <- data[,1]
   data <- data[,-1]
   
-  model <- agnes(data, method = 'ward')
+  dist_mat <- dist(data, method = 'euclidean')
+  
+  model <- hclust(dist_mat, method = 'ward.D')
   
   dhc <- as.dendrogram(model)
   # Rectangular lines
   ddata <- dendro_data(dhc, type = "rectangle")
+  
   plot <- ggplot(segment(ddata)) + 
     geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
     geom_text(data = label(ddata), 
               aes(x = x, y = y, label = label), size = 3, angle = 45) +
     theme_dendro()
-  plot
+  show(plot)
+  
+  return(model)
+}
 
+#'
+#' Generate heatmap for filtered data. Use the metadata table to add color
+#' bar visualizing the clusters based on cancer subtype.
+#'
+#' @param filtered_data
+#' @return heatmap plot
+#'
+
+mapSampleToColor <- function(meta){
+  colorsVector = ifelse(meta["cit.coloncancermolecularsubtype"]=="C3", 
+                        "red", ifelse(meta["cit.coloncancermolecularsubtype"]=="C4", 
+                                       "blue", "green"))
+  return(colorsVector)
 }
 
 heat_map <- function(data){
   rownames(data) <- data[,1]
   data <- as.matrix(data[,-1])
   
-  heatmap(data)
+  sampleColors = mapSampleToColor(meta_data)
+  heatmap(data, Colv = NA, RowSideColors=sampleColors)
   
 }
 
-heat_map(filtered_data)
+#'
+#' Perform welch t-test on filtered data comparing gene expression for all
+#' genes between clusters 1 and 2 generated in the clustering function.
+#'
+#' @param filtered_data/clusters
+#'
+#' @return dataframe containing genes differentially expressed with p < 0.05.
 
+welch_t <- function(data, clust){
+  
+  cut_avg <- cutree(clust, k = 2)
+  data_c <- mutate(data, cluster = cut_avg)
+  
+  count(data_c, cluster)
+  
+  data_c_long <- data_c[-c(1)] %>%
+    pivot_longer(-cluster, names_to = "genes", values_to = "expression")
+  
+  stat.test <- data_c_long %>%
+    group_by(genes) %>%
+    t_test(expression ~ cluster) %>%
+    adjust_pvalue(method = "BH") %>%
+    add_significance() %>%
+    filter(p < 0.05)
+
+  
+  return(stat.test)
+  
+}
