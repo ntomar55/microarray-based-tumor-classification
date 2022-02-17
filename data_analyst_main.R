@@ -334,6 +334,7 @@ heat_map(filtered_data_4_4)
 diff_exp_tab_5_4 <- welch_t(filtered_data_4_4, clusters_4_4) %>%
   affy_to_hgnc()
 #diff_exp_tab_5_6 <- welch_t(filtered_data_4_2, clusters_4_2)
+#
 
 write.csv(diff_exp_tab_5_4, 
           '/projectnb/bf528/users/saxophone/data_p1/data_analysis_out/proj1_5_4.csv',
