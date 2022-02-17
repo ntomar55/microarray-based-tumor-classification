@@ -14,6 +14,7 @@ library(rstatix)
 library(hablar)
 library(gplots)
 library(biomaRt)
+library(gt)
 
 #' Read the expression data "csv" file.
 #'
@@ -254,6 +255,8 @@ welch_t <- function(data, clust){
   cut_avg <- cutree(clust, k = 2)
   data_c <- mutate(data, cluster = cut_avg)
   
+  print(head(data_c))
+  
   count(data_c, cluster)
   
   data_c_long <- data_c[-c(1)] %>%
@@ -300,6 +303,46 @@ affy_to_hgnc <- function(data) {
   return(new_data)
 }
 
+#creates table using the gt module showing the most differentially
+#expressed genes from both clusters
+gen_table <- function(data){
+  #generate table for use in paper
+  subtypes <- c("Cluster 1 (C4)","Cluster 1 (C4)","Cluster 1 (C4)","Cluster 1 (C4)",
+                "Cluster 1 (C4)","Cluster 1 (C4)","Cluster 1 (C4)","Cluster 1 (C4)",
+                "Cluster 1 (C4)","Cluster 1 (C4)",
+                "Cluster 2 (C3)","Cluster 2 (C3)","Cluster 2 (C3)","Cluster 2 (C3)",
+                "Cluster 2 (C3)","Cluster 2 (C3)","Cluster 2 (C3)","Cluster 2 (C3)",
+                "Cluster 2 (C3)","Cluster 2 (C3)")
+  data$subtype <- subtypes
+  data$t <- abs(data$t)
+  
+  data <- data%>%
+    arrange(desc(t))
+  
+  table <- data %>%
+    gt(rowname_col = "genes", groupname_col = "subtype") %>%
+    tab_header(title = md("Most Differentially Expressed Genes"),
+               subtitle = md("Welch T-test performed between clusters 1 and 2 (C4 and C3) with P-adjusted < 0.05")) %>%
+    tab_source_note(md("T shows magnitude of T statistic calculated")) %>%
+    tab_style(
+      style = cell_fill(color = "#FF6666"),
+      locations = cells_body(
+        rows = subtypes == "Cluster 2 (C3)"
+      )
+    ) %>% 
+    tab_style(
+      style = cell_fill(color =  "#3399FF"),
+      locations = cells_body(
+        rows = subtypes == "Cluster 1 (C4)"
+      ))
+  
+  gtsave(table, "most_differentially_expr.png", 
+         path = '/projectnb/bf528/users/saxophone/data_p1/data_analysis_out')
+  setwd("/usr4/bf527/dlenci/Documents/project-1-saxophone-1")
+  
+  return(data)
+}
+
 #'
 #' Generate csv files and plots needed for report.
 #' May need to change location of files being read in.
@@ -333,8 +376,12 @@ heat_map(filtered_data_4_4)
 #perform welch t test on filtered data and output to csv.
 diff_exp_tab_5_4 <- welch_t(filtered_data_4_4, clusters_4_4) %>%
   affy_to_hgnc()
-#diff_exp_tab_5_6 <- welch_t(filtered_data_4_2, clusters_4_2)
-#
+
+#generate table of most differentially expressed genes
+most_different <- rbind(head(diff_exp_tab_5_4, n=10), tail(diff_exp_tab_5_4, n=10))
+rownames(most_different) <- NULL
+gen_table(most_different)
+
 
 write.csv(diff_exp_tab_5_4, 
           '/projectnb/bf528/users/saxophone/data_p1/data_analysis_out/proj1_5_4.csv',
@@ -342,3 +389,11 @@ write.csv(diff_exp_tab_5_4,
 write.csv(diff_exp_tab_5_6, 
           '/projectnb/bf528/users/saxophone/data_p1/data_analysis_out/proj1_5_6.csv',
           row.names = F)
+
+#get samples clustering incorrectly
+cluster_var <- meta_data[,c("geo_accession", "cit.coloncancermolecularsubtype")] %>%
+  mutate(cluster = cutree(clusters_4_4, k=2)) %>%
+  filter(cit.coloncancermolecularsubtype == "C4") %>%
+  filter(cluster == "2")
+
+print(cluster_var)
